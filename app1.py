@@ -6,7 +6,7 @@ import os
 import requests
 
 def download_file_from_google_drive(file_id, destination):
-    URL = "https://docs.google.com/uc?export=download"
+    URL = "https://drive.google.com/uc?export=download&id=1TKWI5I7D32YOFi3oQpQlV5kPz9jBRJ8K"
     session = requests.Session()
 
     response = session.get(URL, params={'id': file_id}, stream=True)
