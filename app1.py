@@ -54,7 +54,7 @@ if not os.path.exists(MODEL_PATH):
 
 # Load model and other objects with error handling
 try:
-    model = joblib.load(MODEL_PATH)
+    model = joblib.load('monthly_income_model.pkl')
     scaler = joblib.load('scaler.pkl')
     columns = joblib.load('columns.pkl')
     data = pd.read_csv('train.csv')
