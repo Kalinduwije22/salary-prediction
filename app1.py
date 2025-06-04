@@ -3,7 +3,7 @@ import joblib
 from sklearn.preprocessing import LabelEncoder
 import streamlit as st
 import os
-import urllib.request
+import requests  # add this import!
 
 def download_file_from_google_drive(file_id, destination):
     URL = "https://docs.google.com/uc?export=download"
@@ -32,24 +32,23 @@ def save_response_content(response, destination):
             if chunk:
                 f.write(chunk)
 
-
 FILE_ID = "1TKWI5I7D32YOFi3oQpQlV5kPz9jBRJ8K"
 MODEL_PATH = "monthly_income_model.pkl"
 
-# Download if not present
 if not os.path.exists(MODEL_PATH):
     print("Downloading model...")
-    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    download_file_from_google_drive(FILE_ID, MODEL_PATH)
     print("Download complete.")
 
-# Load the model
 model = joblib.load(MODEL_PATH)
 
-# Load model and preprocessing objects
-
+# Load other objects
 scaler = joblib.load('scaler.pkl')
-columns = joblib.load('columns.pkl')  # All columns used during training
+columns = joblib.load('columns.pkl')
 data = pd.read_csv('train.csv')
+
+# Your Streamlit UI code remains unchanged...
+
 
 # Use only selected features for input
 selected_columns = ['Gender', 'Years at Company', 'Job Role', 'Job Level', 'Company Size','Age']
