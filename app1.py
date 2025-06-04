@@ -1,10 +1,11 @@
 import os
+import requests
 import pandas as pd
 import joblib
 from sklearn.preprocessing import LabelEncoder
 import streamlit as st
-import requests
 
+# Google Drive download helper functions
 def download_file_from_google_drive(file_id, destination):
     URL = "https://docs.google.com/uc?export=download"
     session = requests.Session()
@@ -26,32 +27,48 @@ def get_confirm_token(response):
 
 def save_response_content(response, destination):
     CHUNK_SIZE = 32768
-
     with open(destination, "wb") as f:
         for chunk in response.iter_content(CHUNK_SIZE):
             if chunk:
                 f.write(chunk)
 
+# Validate if file is a pickle file (basic check)
 def is_valid_pickle(filepath):
-    # Quick check if file looks like a pickle by reading first bytes
     try:
         with open(filepath, "rb") as f:
             header = f.read(2)
-            return header == b'\x80\x04'  # pickle protocol header
+            return header == b'\x80\x04'  # Pickle protocol header bytes
     except Exception:
         return False
 
-# Google Drive file ID for your model file
-FILE_ID = "1TKWI5I7D32YOFi3oQpQlV5kPz9jBRJ8K"
+# File info
+MODEL_FILE_ID = "1TKWI5I7D32YOFi3oQpQlV5kPz9jBRJ8K"
 MODEL_PATH = "monthly_income_model.pkl"
 
-# Download model if not exists or invalid
-if not os.path.exists(MODEL_PATH) or not is_valid_pickle(MODEL_PATH):
-    st.write("Downloading model from Google Drive...")
-    download_file_from_google_drive(FILE_ID, MODEL_PATH)
-    st.write("Download complete.")
+# Streamlit UI start
+st.title("Employee Monthly Income Prediction")
 
-# Load model and other objects safely
+# Download model if needed and validate
+if not os.path.exists(MODEL_PATH) or not is_valid_pickle(MODEL_PATH):
+    st.info("Downloading model from Google Drive...")
+    try:
+        download_file_from_google_drive(MODEL_FILE_ID, MODEL_PATH)
+    except Exception as e:
+        st.error(f"Failed to download model: {e}")
+        st.stop()
+    if not is_valid_pickle(MODEL_PATH):
+        st.error("Downloaded model file is invalid or corrupted.")
+        st.stop()
+    st.success("Model downloaded successfully.")
+
+# Check other required files
+required_files = ['scaler.pkl', 'columns.pkl', 'train.csv']
+for file in required_files:
+    if not os.path.exists(file):
+        st.error(f"Required file '{file}' not found. Please upload it to your project folder.")
+        st.stop()
+
+# Load model and related files safely
 try:
     model = joblib.load(MODEL_PATH)
     scaler = joblib.load('scaler.pkl')
@@ -61,13 +78,11 @@ except Exception as e:
     st.error(f"Failed to load model or related files: {e}")
     st.stop()
 
-# Prepare Streamlit UI
+# Prepare input data
 selected_columns = ['Gender', 'Years at Company', 'Job Role', 'Job Level', 'Company Size', 'Age']
+X = data[selected_columns]
 cat_cols = ['Gender', 'Job Role', 'Job Level', 'Company Size', 'Age']
 
-X = data[selected_columns]
-
-st.title("Employee Monthly Income Prediction")
 st.write("Enter the following employee details:")
 
 input_data = {}
@@ -84,17 +99,13 @@ for col in selected_columns:
 if st.button("Predict"):
     input_df = pd.DataFrame([input_data])
 
-    # Encode categorical features using training data LabelEncoder logic
+    # Encode categorical features
     for col in cat_cols:
         le = LabelEncoder()
         le.fit(X[col])
-        try:
-            input_df[col] = le.transform(input_df[col])
-        except ValueError:
-            st.error(f"Invalid value for {col}. Please select a valid option.")
-            st.stop()
+        input_df[col] = le.transform(input_df[col])
 
-    # Fill missing columns with 0 (to match training data)
+    # Add missing columns with default 0
     for col in columns:
         if col not in input_df.columns:
             input_df[col] = 0
@@ -102,9 +113,9 @@ if st.button("Predict"):
     # Reorder columns to match training
     input_df = input_df[columns]
 
-    # Scale input
+    # Scale features
     input_scaled = scaler.transform(input_df)
 
-    # Predict and display result
+    # Predict income
     predicted_income = model.predict(input_scaled)[0]
     st.success(f"Predicted Monthly Income: {predicted_income:.2f}")
