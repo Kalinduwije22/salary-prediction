@@ -2,9 +2,23 @@ import pandas as pd
 import joblib
 from sklearn.preprocessing import LabelEncoder
 import streamlit as st
+import os
+import urllib.request
+
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1TKWI5I7D32YOFi3oQpQlV5kPz9jBRJ8K"
+MODEL_PATH = "monthly_income_model.pkl"
+
+# Download if not present
+if not os.path.exists(MODEL_PATH):
+    print("Downloading model...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    print("Download complete.")
+
+# Load the model
+model = joblib.load(MODEL_PATH)
 
 # Load model and preprocessing objects
-model = joblib.load('monthly_income_model.pkl')
+
 scaler = joblib.load('scaler.pkl')
 columns = joblib.load('columns.pkl')  # All columns used during training
 data = pd.read_csv('train.csv')
