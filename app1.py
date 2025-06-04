@@ -1,9 +1,9 @@
+import os
 import pandas as pd
 import joblib
 from sklearn.preprocessing import LabelEncoder
 import streamlit as st
-import os
-import requests  # add this import!
+import requests
 
 def download_file_from_google_drive(file_id, destination):
     URL = "https://docs.google.com/uc?export=download"
@@ -32,33 +32,44 @@ def save_response_content(response, destination):
             if chunk:
                 f.write(chunk)
 
+def is_valid_pickle(filepath):
+    # Quick check if file looks like a pickle by reading first bytes
+    try:
+        with open(filepath, "rb") as f:
+            header = f.read(2)
+            return header == b'\x80\x04'  # pickle protocol header
+    except Exception:
+        return False
+
+# Google Drive file ID for your model file
 FILE_ID = "1TKWI5I7D32YOFi3oQpQlV5kPz9jBRJ8K"
 MODEL_PATH = "monthly_income_model.pkl"
 
-if not os.path.exists(MODEL_PATH):
-    print("Downloading model...")
+# Download model if not exists or invalid
+if not os.path.exists(MODEL_PATH) or not is_valid_pickle(MODEL_PATH):
+    st.write("Downloading model from Google Drive...")
     download_file_from_google_drive(FILE_ID, MODEL_PATH)
-    print("Download complete.")
+    st.write("Download complete.")
 
-model = joblib.load(MODEL_PATH)
+# Load model and other objects safely
+try:
+    model = joblib.load(MODEL_PATH)
+    scaler = joblib.load('scaler.pkl')
+    columns = joblib.load('columns.pkl')
+    data = pd.read_csv('train.csv')
+except Exception as e:
+    st.error(f"Failed to load model or related files: {e}")
+    st.stop()
 
-# Load other objects
-scaler = joblib.load('scaler.pkl')
-columns = joblib.load('columns.pkl')
-data = pd.read_csv('train.csv')
+# Prepare Streamlit UI
+selected_columns = ['Gender', 'Years at Company', 'Job Role', 'Job Level', 'Company Size', 'Age']
+cat_cols = ['Gender', 'Job Role', 'Job Level', 'Company Size', 'Age']
 
-# Your Streamlit UI code remains unchanged...
-
-
-# Use only selected features for input
-selected_columns = ['Gender', 'Years at Company', 'Job Role', 'Job Level', 'Company Size','Age']
 X = data[selected_columns]
-cat_cols = ['Gender', 'Job Role', 'Job Level', 'Company Size','Age']
-st.title("Employee Monthly Income Prediction")
 
+st.title("Employee Monthly Income Prediction")
 st.write("Enter the following employee details:")
 
-# Collect user input
 input_data = {}
 for col in selected_columns:
     if X[col].dtype == 'object':
@@ -71,26 +82,29 @@ for col in selected_columns:
         input_data[col] = st.number_input(col, min_value=min_val, max_value=max_val, value=mean_val)
 
 if st.button("Predict"):
-    # Create DataFrame with selected features
     input_df = pd.DataFrame([input_data])
 
-    # Encode categorical features
+    # Encode categorical features using training data LabelEncoder logic
     for col in cat_cols:
         le = LabelEncoder()
         le.fit(X[col])
-        input_df[col] = le.transform(input_df[col])
+        try:
+            input_df[col] = le.transform(input_df[col])
+        except ValueError:
+            st.error(f"Invalid value for {col}. Please select a valid option.")
+            st.stop()
 
-    # Fill missing columns with default value (e.g., 0)
+    # Fill missing columns with 0 (to match training data)
     for col in columns:
         if col not in input_df.columns:
             input_df[col] = 0
 
-    # Ensure column order matches training
+    # Reorder columns to match training
     input_df = input_df[columns]
 
     # Scale input
     input_scaled = scaler.transform(input_df)
 
-    # Predict
+    # Predict and display result
     predicted_income = model.predict(input_scaled)[0]
     st.success(f"Predicted Monthly Income: {predicted_income:.2f}")
